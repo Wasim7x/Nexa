@@ -2,6 +2,10 @@
 __pycache__/
 *.py[codz]
 *$py.class
+*.db
+node_modules/
+.env
+dist/
 
 # C extensions
 *.so
@@ -218,3 +222,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+backend/tests

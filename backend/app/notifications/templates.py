@@ -7,7 +7,7 @@ class NotificationTemplates:
     def render_order_confirmation(cls, merchant_name: str, order_number: str, total_amount: float) -> str:
         return (
             f"✅ *{merchant_name} Order Confirmed!*\n\n"
-            f"Your order *{order_number}* for *${total_amount:.2f}* has been successfully received.\n"
+            f"Your order *{order_number}* for *₹{total_amount:.2f}* has been successfully received.\n"
             "We are preparing your items now. Reply anytime to check your status."
         )
 
@@ -37,6 +37,28 @@ class NotificationTemplates:
             f"Time: *{time_str}*\n"
             f"Booking Reference: *{booking_ref}*\n\n"
             "Please arrive 10 minutes early. To reschedule or cancel, reply to this chat."
+        )
+
+    @classmethod
+    def render_appointment_rescheduled(
+        cls, merchant_name: str, service_name: str, new_date: str, new_time: str, booking_ref: str
+    ) -> str:
+        return (
+            f"🗓️ *{merchant_name} Appointment Rescheduled*\n\n"
+            f"Service: *{service_name}*\n"
+            f"New Date: *{new_date}*\n"
+            f"New Time: *{new_time}*\n"
+            f"Booking Reference: *{booking_ref}*\n\n"
+            "Your appointment has been successfully updated. Reply anytime to modify."
+        )
+
+    @classmethod
+    def render_appointment_cancelled(
+        cls, merchant_name: str, service_name: str, booking_ref: str
+    ) -> str:
+        return (
+            f"❌ *{merchant_name} Appointment Cancelled*\n\n"
+            f"Your appointment for *{service_name}* (Ref: *{booking_ref}*) has been cancelled as requested."
         )
 
     @classmethod

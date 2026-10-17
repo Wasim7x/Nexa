@@ -66,7 +66,7 @@ export const App: React.FC = () => {
       case 'settings':
         return <SettingsPage activeMerchant={activeMerchant} />;
       case 'simulator':
-        return <SimulatorPage />;
+        return <SimulatorPage activeMerchant={activeMerchant} />;
       default:
         return <OverviewPage activeMerchant={activeMerchant} onNavigate={setCurrentPage} />;
     }

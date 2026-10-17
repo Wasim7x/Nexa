@@ -158,7 +158,7 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = ({ activeMerchant }) 
         <div className="p-12 text-center rounded-2xl bg-slate-800/30 border border-slate-800/60">
           <BookOpen className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-300">No documents found</h3>
-          <p className="text-sm text-slate-500 mt-1">Upload PDF, TXT, CSV, or write an FAQ to expand Vera's knowledge.</p>
+          <p className="text-sm text-slate-500 mt-1">Upload PDF, TXT, CSV, or write an FAQ to expand Nexa's knowledge.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -291,7 +291,7 @@ export const KnowledgePage: React.FC<KnowledgePageProps> = ({ activeMerchant }) 
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
             <h3 className="text-lg font-bold text-white mb-1">Add FAQ / Policy Item</h3>
-            <p className="text-xs text-slate-400 mb-4">Structured notes used by Vera to answer inquiries.</p>
+            <p className="text-xs text-slate-400 mb-4">Structured notes used by Nexa to answer inquiries.</p>
 
             <form onSubmit={handleCreateFaq} className="space-y-4">
               <div>

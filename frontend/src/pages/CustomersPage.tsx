@@ -94,7 +94,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = ({ activeMerchant }) 
         <div className="p-12 text-center rounded-2xl bg-slate-800/30 border border-slate-800/60">
           <Users className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-300">No customers registered for this merchant</h3>
-          <p className="text-sm text-slate-500 mt-1">Customers who contact Vera via WhatsApp will appear here automatically.</p>
+          <p className="text-sm text-slate-500 mt-1">Customers who contact Nexa via WhatsApp will appear here automatically.</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl">

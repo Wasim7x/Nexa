@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ApiClient } from '../services/api';
 import { CatalogItem, Merchant } from '../types';
-import { Package, Plus, Search, Tag, DollarSign, Layers, CheckCircle, Clock } from 'lucide-react';
+import { Package, Plus, Search, Tag, DollarSign, Layers, CheckCircle, Clock, Trash2 } from 'lucide-react';
 
 interface ProductsPageProps {
   activeMerchant: Merchant | null;
@@ -65,6 +65,13 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ activeMerchant }) =>
     loadItems();
   };
 
+  const handleDelete = async (itemId: string) => {
+    if (confirm('Are you sure you want to remove this record?')) {
+      await ApiClient.deleteCatalogItem(itemId);
+      loadItems();
+    }
+  };
+
   const filteredItems = items.filter((it) => {
     const s = search.toLowerCase();
     return it.name.toLowerCase().includes(s) || it.category.toLowerCase().includes(s);
@@ -82,7 +89,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ activeMerchant }) =>
             <span>{isServiceMerchant ? 'Services Catalog & Pricing' : 'Products & Live Inventory'}</span>
           </h2>
           <p className="text-sm text-slate-400 mt-1">
-            Authoritative records referenced by Vera during customer conversations and order placement.
+            Authoritative records referenced by Nexa during customer conversations and order placement.
           </p>
         </div>
 
@@ -154,7 +161,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ activeMerchant }) =>
                     </span>
                   </td>
                   <td className="py-4 px-6">
-                    <span className="font-bold text-white">${item.price.toFixed(2)}</span>
+                    <span className="font-bold text-white">₹{item.price.toFixed(2)}</span>
                     {item.unit && <span className="text-xs text-slate-400 ml-1">/{item.unit}</span>}
                   </td>
 
@@ -196,10 +203,19 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ activeMerchant }) =>
                   )}
 
                   <td className="py-4 px-6 text-right">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <CheckCircle className="w-3 h-3" />
-                      <span>Active</span>
-                    </span>
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>Active</span>
+                      </span>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                        title="Delete item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -245,7 +261,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ activeMerchant }) =>
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Price ($)</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"

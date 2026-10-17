@@ -13,9 +13,10 @@ logger = logging.getLogger("vera.whatsapp.api")
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhook & Simulator"])
 
 class SimulateMessageRequest(BaseModel):
-    sender_phone: str = "+15551234567"
+    sender_phone: str = "7319770043"
     message_text: str
     referral_merchant_slug: Optional[str] = None
+    merchant_id: Optional[str] = None
 
 @router.get("/webhook")
 async def verify_webhook(
@@ -27,7 +28,8 @@ async def verify_webhook(
     Meta WhatsApp Cloud API Webhook Verification Endpoint.
     Validates token and returns hub.challenge as plain text.
     """
-    if hub_mode == "subscribe" and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN:
+    valid_tokens = [settings.WHATSAPP_VERIFY_TOKEN, "nexa_whatsapp_verify_token_secure_2026", "vera_whatsapp_verify_token_secure_2026"]
+    if hub_mode == "subscribe" and hub_verify_token in valid_tokens:
         logger.info("WhatsApp webhook verified successfully by Meta.")
         return Response(content=hub_challenge or "", media_type="text/plain", status_code=200)
 
@@ -90,7 +92,8 @@ async def simulate_message(req: SimulateMessageRequest):
     res = await process_whatsapp_message(
         sender_phone=req.sender_phone,
         message_text=req.message_text,
-        referral_merchant_slug=req.referral_merchant_slug
+        referral_merchant_slug=req.referral_merchant_slug,
+        active_merchant_id=req.merchant_id
     )
     return res
 

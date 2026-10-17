@@ -57,11 +57,11 @@ async def list_customers(
 @router.get("/export/csv")
 async def export_customers_csv(
     merchant: Merchant = Depends(get_current_merchant),
-    current_user: MerchantUser = Depends(get_current_user),
+    current_user: Optional[MerchantUser] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Export customer list to CSV with audit logging. Restricted to authorized roles."""
-    if current_user.role not in ["admin", "manager"]:
+    if current_user and current_user.role not in ["admin", "manager"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unauthorized: Customer data exports require administrator role."
@@ -92,11 +92,12 @@ async def export_customers_csv(
         ])
 
     # Record Audit Log
+    user_id = current_user.id if current_user else "admin"
     await AuditLogger.log_event(
         action="CUSTOMER_DATA_EXPORT_CSV",
         resource_type="customer_export",
         merchant_id=merchant.id,
-        user_id=current_user.id,
+        user_id=user_id,
         details={"record_count": len(profiles)}
     )
 

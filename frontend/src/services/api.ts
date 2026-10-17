@@ -5,11 +5,11 @@ export class ApiClient {
 
   public static setMerchantId(id: string) {
     this.merchantId = id;
-    localStorage.setItem('vera_active_merchant', id);
+    localStorage.setItem('nexa_active_merchant', id);
   }
 
   public static getMerchantId(): string {
-    return localStorage.getItem('vera_active_merchant') || this.merchantId;
+    return localStorage.getItem('nexa_active_merchant') || localStorage.getItem('vera_active_merchant') || this.merchantId;
   }
 
   private static getHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -48,6 +48,23 @@ export class ApiClient {
     return res.json();
   }
 
+  public static async updateCatalogItem(itemId: string, data: any) {
+    const res = await fetch(`${API_BASE}/catalog/items/${itemId}`, {
+      method: 'PUT',
+      headers: this.getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  }
+
+  public static async deleteCatalogItem(itemId: string) {
+    const res = await fetch(`${API_BASE}/catalog/items/${itemId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders()
+    });
+    return res.json();
+  }
+
   public static async updateStock(itemId: string, stockQuantity: number) {
     const res = await fetch(`${API_BASE}/catalog/items/${itemId}/stock`, {
       method: 'PUT',
@@ -69,7 +86,7 @@ export class ApiClient {
   }
 
   public static getCustomerExportUrl(): string {
-    return `${API_BASE}/customers/export/csv`;
+    return `${API_BASE}/customers/export/csv?merchant_id=${encodeURIComponent(this.getMerchantId())}`;
   }
 
   public static async getOperations(statusFilter?: string) {
@@ -231,14 +248,15 @@ export class ApiClient {
     return res.json();
   }
 
-  public static async simulateWhatsApp(senderPhone: string, messageText: string, referralSlug?: string) {
+  public static async simulateWhatsApp(senderPhone: string, messageText: string, referralSlug?: string, merchantId?: string) {
     const res = await fetch(`${API_BASE}/whatsapp/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender_phone: senderPhone,
         message_text: messageText,
-        referral_merchant_slug: referralSlug
+        referral_merchant_slug: referralSlug,
+        merchant_id: merchantId
       })
     });
     return res.json();

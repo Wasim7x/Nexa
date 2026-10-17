@@ -1,8 +1,11 @@
 import asyncio
 from datetime import datetime, date, time, timedelta, timezone
 from decimal import Decimal
+from typing import List, Dict, Any, Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 
 from backend.app.core.database import engine, Base, AsyncSessionLocal
 from backend.app.core.security import get_password_hash
@@ -16,6 +19,8 @@ from backend.app.models.shared import (
     Conversation,
     Message,
     SupportEscalation,
+    NotificationJob,
+    NotificationEvent,
     AuditLog
 )
 from backend.app.models.grocery import GroceryProduct, GroceryInventory, GroceryOrder, GroceryOrderItem
@@ -30,559 +35,617 @@ async def init_db():
     print("Database tables initialized.")
 
 async def seed_data():
-    """Seed comprehensive demo data for all 4 merchants."""
+    """Idempotently seed demo and operational data for all 4 Nexa merchants."""
     await init_db()
 
     async with AsyncSessionLocal() as session:
-        # Check if already seeded
-        result = await session.execute(select(Merchant))
-        if result.scalars().first():
-            print("Database already contains merchants. Skipping seed.")
-            return
-
-        print("Seeding database with multi-merchant records...")
+        print("Starting idempotent seed for Nexa Multi-Merchant AI Assistant...")
         pwd_hash = get_password_hash("Password123!")
 
         # ----------------------------------------------------
-        # 1. GROCERY STORE
+        # 1. MERCHANTS & SETTINGS
         # ----------------------------------------------------
-        grocery_merchant = Merchant(
-            id="grocery-store",
-            name="FreshMart Grocery",
-            slug="grocery",
-            business_type="grocery",
-            phone_number="+15550100001",
-            description="Your premium neighborhood grocery store with organic produce, dairy, bakery, and pantry staples."
-        )
-        session.add(grocery_merchant)
-
-        grocery_user = MerchantUser(
-            id="user-grocery-admin",
-            merchant_id="grocery-store",
-            email="admin@freshmart.com",
-            hashed_password=pwd_hash,
-            full_name="Sarah Jenkins",
-            role="admin"
-        )
-        session.add(grocery_user)
-
-        grocery_settings = MerchantSettings(
-            merchant_id="grocery-store",
-            business_hours="Mon-Sun: 7:00 AM - 10:00 PM",
-            timezone="America/New_York",
-            notification_phone="+15550109991",
-            notification_channel="whatsapp",
-            escalation_message="I'm connecting you with FreshMart customer support for your order inquiry.",
-            welcome_message="Welcome to FreshMart Grocery! I can help you check prices, search organic produce, and track or place your delivery orders.",
-            ai_provider="mock",
-            ai_model="default"
-        )
-        session.add(grocery_settings)
-
-        # Grocery Knowledge Docs
-        session.add(KnowledgeDocument(
-            merchant_id="grocery-store",
-            title="FreshMart Store Policies & Delivery",
-            doc_type="policy",
-            content="FreshMart provides same-day delivery within a 5-mile radius on all orders placed before 6:00 PM. Minimum order for free delivery is $35. Returns on unopened non-perishable goods are accepted within 7 days with receipt. Perishable items (dairy, fresh produce) can be refunded if reported within 24 hours.",
-            is_published=True
-        ))
-        session.add(KnowledgeDocument(
-            merchant_id="grocery-store",
-            title="FreshMart Weekly Specials",
-            doc_type="offer",
-            content="Special Offers this week: Buy 1 gallon of Organic Whole Milk get 1 free Organic Eggs dozen! 20% discount on California Avocados and Basmati Rice 5kg bags.",
-            is_published=True
-        ))
-
-        # Grocery Products & Inventory
-        grocery_items_data = [
-            ("Organic Whole Milk 1 Gallon", "Dairy", "gallon", Decimal("4.99"), 45, "Fresh organic whole milk from local pasture-raised cows."),
-            ("Farm Fresh Eggs (Dozen)", "Dairy", "carton", Decimal("3.49"), 80, "Grade A large brown eggs from free-range hens."),
-            ("Artisan Sourdough Bread", "Bakery", "loaf", Decimal("5.25"), 25, "Slow-fermented artisan sourdough baked fresh daily."),
-            ("Organic Hass Avocados (4-pack)", "Produce", "pack", Decimal("4.49"), 60, "Ripe and ready to eat California Hass avocados."),
-            ("Royal Basmati Rice 5kg", "Pantry", "bag", Decimal("14.99"), 35, "Aromatic long-grain aged basmati rice."),
-            ("Cold Pressed Extra Virgin Olive Oil 750ml", "Pantry", "bottle", Decimal("12.99"), 40, "Single-origin extra virgin cold-pressed olive oil."),
-            ("Fresh Organic Bananas", "Produce", "bunch", Decimal("1.89"), 120, "Fair-trade certified ripe organic bananas."),
-            ("Greek Yogurt Plain 32oz", "Dairy", "tub", Decimal("5.49"), 30, "Thick and creamy high-protein authentic Greek yogurt.")
+        merchants_config = [
+            {
+                "id": "grocery-store",
+                "name": "FreshMart Grocery",
+                "slug": "grocery",
+                "business_type": "grocery",
+                "phone_number": "+917319770043",
+                "description": "Premium neighborhood grocery store with organic produce, dairy, bakery, and daily staples.",
+                "hours": "Mon-Sat: 8:00 AM - 10:00 PM, Sun: 9:00 AM - 8:00 PM",
+                "welcome": "Welcome to FreshMart Grocery on Nexa! Check prices, find organic staples, and order grocery deliveries effortlessly.",
+                "escalation": "Connecting you with FreshMart store support. Our team will assist you with your grocery order shortly."
+            },
+            {
+                "id": "sweets-shop",
+                "name": "Royal Sweets & Delights",
+                "slug": "sweets",
+                "business_type": "sweets",
+                "phone_number": "+917319770044",
+                "description": "Authentic artisan Indian confectioner specializing in pure desi ghee sweets, dry fruit delicacies, and gift boxes.",
+                "hours": "Mon-Sun: 9:00 AM - 10:00 PM",
+                "welcome": "Welcome to Royal Sweets & Delights on Nexa! I can assist you with festive sweet boxes, prices, and quick orders.",
+                "escalation": "Forwarding your request to our Royal Sweets specialist team. We will be right with you."
+            },
+            {
+                "id": "glow-salon",
+                "name": "Glow Salon",
+                "slug": "salon",
+                "business_type": "salon",
+                "phone_number": "+917319770045",
+                "description": "Boutique unisex luxury salon and day spa offering precision hair styling, skin therapies, and bridal packages.",
+                "hours": "Mon-Sat: 10:00 AM - 8:00 PM, Sun: 11:00 AM - 6:00 PM",
+                "welcome": "Welcome to Glow Salon on Nexa! I can help you explore hair & skin treatments and schedule your appointments.",
+                "escalation": "Connecting you with the Glow Salon front desk team for your appointment consultation."
+            },
+            {
+                "id": "dental-clinic",
+                "name": "SmileCare Dental Clinic",
+                "slug": "dental",
+                "business_type": "dental",
+                "phone_number": "+917319770046",
+                "description": "Advanced family dentistry providing comprehensive dental checkups, cleaning, cosmetic veneers, and restorative care.",
+                "hours": "Mon-Sat: 9:00 AM - 6:00 PM, Sun: Closed",
+                "welcome": "Welcome to SmileCare Dental Clinic on Nexa. I can assist you with service info, clinic hours, and consultation appointments.",
+                "escalation": "Connecting you with SmileCare clinical staff for immediate dental attention."
+            }
         ]
 
-        grocery_product_objs = []
-        for name, cat, unit, price, stock, desc in grocery_items_data:
-            prod = GroceryProduct(
-                merchant_id="grocery-store",
-                name=name,
-                category=cat,
-                unit=unit,
-                price=price,
-                description=desc
-            )
-            session.add(prod)
-            inv = GroceryInventory(
-                product=prod,
-                stock_quantity=stock,
-                low_stock_threshold=10
-            )
-            session.add(inv)
-            grocery_product_objs.append(prod)
+        for m_cfg in merchants_config:
+            m = await session.get(Merchant, m_cfg["id"])
+            if not m:
+                m = Merchant(
+                    id=m_cfg["id"],
+                    name=m_cfg["name"],
+                    slug=m_cfg["slug"],
+                    business_type=m_cfg["business_type"],
+                    phone_number=m_cfg["phone_number"],
+                    description=m_cfg["description"],
+                    is_active=True
+                )
+                session.add(m)
+            else:
+                m.name = m_cfg["name"]
+                m.slug = m_cfg["slug"]
+                m.business_type = m_cfg["business_type"]
+                m.description = m_cfg["description"]
+                m.is_active = True
+
+            # Admin User
+            user_id = f"user-{m_cfg['slug']}-admin"
+            u = await session.get(MerchantUser, user_id)
+            if not u:
+                u = MerchantUser(
+                    id=user_id,
+                    merchant_id=m_cfg["id"],
+                    email=f"admin@{m_cfg['slug']}.com",
+                    hashed_password=pwd_hash,
+                    full_name=f"{m_cfg['name']} Manager",
+                    role="admin",
+                    is_active=True
+                )
+                session.add(u)
+
+            # Settings
+            stmt = select(MerchantSettings).where(MerchantSettings.merchant_id == m_cfg["id"])
+            res = await session.execute(stmt)
+            settings = res.scalars().first()
+            if not settings:
+                settings = MerchantSettings(
+                    merchant_id=m_cfg["id"],
+                    business_hours=m_cfg["hours"],
+                    timezone="Asia/Kolkata",
+                    notification_phone="9351489260",
+                    notification_channel="whatsapp",
+                    escalation_message=m_cfg["escalation"],
+                    welcome_message=m_cfg["welcome"],
+                    ai_provider="ollama",
+                    ai_model="qwen3:1.7b"
+                )
+                session.add(settings)
+            else:
+                settings.business_hours = m_cfg["hours"]
+                settings.notification_phone = "9351489260"
+                settings.notification_channel = "whatsapp"
+                settings.ai_provider = "ollama"
+                settings.ai_model = "qwen3:1.7b"
+                settings.welcome_message = m_cfg["welcome"]
+                settings.escalation_message = m_cfg["escalation"]
+
+        await session.flush()
 
         # ----------------------------------------------------
-        # 2. SWEETS SHOP
+        # 2. KNOWLEDGE BASE & OFFERS
         # ----------------------------------------------------
-        sweets_merchant = Merchant(
-            id="sweets-shop",
-            name="Royal Sweets & Delights",
-            slug="sweets",
-            business_type="sweets",
-            phone_number="+15550100002",
-            description="Traditional and contemporary artisanal confectionery, mithai, premium gift boxes, and festive savories."
-        )
-        session.add(sweets_merchant)
+        kb_data = [
+            # Grocery
+            ("kb-gro-1", "grocery-store", "FreshMart Store Policies & Hours", "policy",
+             "FreshMart Grocery Operating Schedule: Monday to Saturday from 8:00 AM to 10:00 PM, Sunday from 9:00 AM to 8:00 PM. Same-day delivery is available for orders placed before 7:00 PM within a 5 km radius. Free delivery on orders above ₹500. Returns on unopened non-perishable goods are accepted within 7 days with receipt. Perishable items (dairy, fresh produce) can be replaced or refunded within 24 hours.", True),
+            ("kb-gro-2", "grocery-store", "Grocery Super Saver 10% Off", "offer",
+             "Grocery Super Saver: 10% off eligible grocery orders above ₹500! Valid on all fresh dairy, bakery, produce, and pantry staples. Maximum discount ₹100. Valid through December 31, 2026.", True),
+            ("kb-gro-3", "grocery-store", "Expired Monsoon Cooking Oil Sale", "offer",
+             "15% off refined cooking oil and ghee during the monsoon festival. Expired August 31, 2026.", False),
 
-        sweets_user = MerchantUser(
-            id="user-sweets-admin",
-            merchant_id="sweets-shop",
-            email="admin@royalsweets.com",
-            hashed_password=pwd_hash,
-            full_name="Rajesh Patel",
-            role="admin"
-        )
-        session.add(sweets_user)
+            # Sweets
+            ("kb-swt-1", "sweets-shop", "Royal Sweets & Delights Information & Hours", "policy",
+             "Royal Sweets & Delights Store Information: Open Monday to Sunday from 9:00 AM to 10:00 PM without weekly off. All sweets are handcrafted fresh daily using 100% pure desi ghee. Ingredients: Kaju Katli is made with premium Goan cashews and sugar; Gulab Jamun contains fresh khoya, saffron, and cardamom. No artificial food coloring or preservatives. Milk sweets shelf life is 3 days refrigerated; dry fruit sweets have 30 days room temperature shelf life.", True),
+            ("kb-swt-2", "sweets-shop", "Festive Sweet Box Offer", "offer",
+             "Festive Sweet Box Offer: 10% off selected sweet boxes! Special Diwali & Festive Gift Box featuring assorted Kaju Katli, Gulab Jamun, and Milk Cake available for ₹499. Valid through December 31, 2026.", True),
+            ("kb-swt-3", "sweets-shop", "Expired Independence Day Special", "offer",
+             "Tri-color burfi 20% discount offer. Expired August 16, 2026.", False),
 
-        sweets_settings = MerchantSettings(
-            merchant_id="sweets-shop",
-            business_hours="Mon-Sun: 9:00 AM - 10:00 PM",
-            timezone="America/New_York",
-            notification_phone="+15550109992",
-            notification_channel="whatsapp",
-            escalation_message="Connecting you with our master confectioner at Royal Sweets for custom orders and special requests.",
-            welcome_message="Namaste and welcome to Royal Sweets & Delights! Looking for handcrafted Kaju Katli, Gulab Jamun, or luxury festive gift hampers?",
-            ai_provider="mock",
-            ai_model="default"
-        )
-        session.add(sweets_settings)
+            # Salon
+            ("kb-sln-1", "glow-salon", "Glow Salon Operating Guidelines & Hours", "policy",
+             "Glow Salon Operating Policies: Operating hours are Monday to Saturday from 10:00 AM to 8:00 PM, and Sunday from 11:00 AM to 6:00 PM. Please arrive 10 minutes prior to your scheduled slot. Rescheduling is permitted up to 2 hours in advance without penalty. Highest hygiene standards with sterilized instruments and single-use kits.", True),
+            ("kb-sln-2", "glow-salon", "Hair Spa Introductory Offer", "offer",
+             "Hair Spa Introductory Offer: Enjoy a 20% introductory discount on eligible Hair Spa appointments booked this month! Regular price ₹899, introductory offer ₹719. Valid through December 31, 2026.", True),
 
-        # Sweets Knowledge Docs
-        session.add(KnowledgeDocument(
-            merchant_id="sweets-shop",
-            title="Royal Sweets Gifting & Freshness Policy",
-            doc_type="policy",
-            content="All sweets are prepared fresh each morning with 100% pure desi ghee and premium nuts. Dry fruit sweets retain peak freshness for 15 days at room temperature. Milk sweets (Rasgulla, Cham Cham) must be refrigerated and enjoyed within 4 days. Custom gift packaging and message tags available on request.",
-            is_published=True
-        ))
-        session.add(KnowledgeDocument(
-            merchant_id="sweets-shop",
-            title="Festive Discounts and Sugar-Free Range",
-            doc_type="offer",
-            content="Order 2kg or more of Royal Assorted Gift Hampers and receive a complimentary 250g box of Pistachio Barfi. We also feature Stevia-sweetened sugar-free Kaju Katli and Besan Ladoo.",
-            is_published=True
-        ))
-
-        # Sweets Products & Inventory
-        sweets_items_data = [
-            ("Premium Kaju Katli", "Dry Fruit Sweets", "kg", Decimal("22.00"), 50, "Signature diamond-shaped cashew delicacy prepared with pure silver leaf.", False),
-            ("Sugar-Free Kaju Katli", "Dry Fruit Sweets", "kg", Decimal("24.00"), 25, "Stevia-sweetened rich cashew squares for health-conscious sweet lovers.", True),
-            ("Desi Ghee Gulab Jamun (12 pcs)", "Milk Sweets", "box", Decimal("14.50"), 40, "Melt-in-mouth soft dumplings soaked in fragrant cardamom saffron syrup.", False),
-            ("Spongy Kolkata Rasgulla (10 pcs)", "Bengali Sweets", "box", Decimal("13.00"), 35, "Classic delicate cottage cheese balls poached in light sugar syrup.", False),
-            ("Motichoor Ladoo Pure Ghee", "Traditional", "kg", Decimal("16.00"), 60, "Fine golden gram flour pearls infused with saffron and crushed cardamom.", False),
-            ("Royal Royal Celebration Gift Hamper (1kg)", "Gift Boxes", "box", Decimal("32.00"), 30, "Luxurious assortment of Kaju Katli, Pista Roll, Almond Barfi, and Anjeer King.", False),
-            ("Spicy Kaju Masala Savory", "Snacks", "500g", Decimal("15.00"), 45, "Roasted whole cashews tossed in savory chaat masala spices.", False)
+            # Dental
+            ("kb-dnt-1", "dental-clinic", "SmileCare Dental Clinic Information & Guidelines", "policy",
+             "SmileCare Dental Clinic Operating Guidelines: Operating hours are Monday to Saturday from 9:00 AM to 6:00 PM. The clinic is CLOSED on Sundays. Safety and clinical policy: The Nexa AI assistant handles administrative queries, price checks, and appointment scheduling only. It strictly does not provide medical or dental diagnoses, nor does it prescribe medication. For urgent symptoms such as severe facial swelling, acute trauma, or uncontrolled bleeding, please visit the emergency hospital immediately.", True),
+            ("kb-dnt-2", "dental-clinic", "New Patient Consultation Special", "offer",
+             "New Patient Special: ₹100 discount on your first comprehensive Dental Consultation! Regular consultation fee ₹500, now ₹400 for new patients. Valid through December 31, 2026.", True)
         ]
 
-        sweets_product_objs = []
-        for name, cat, unit, price, stock, desc, is_sf in sweets_items_data:
-            prod = SweetsProduct(
-                merchant_id="sweets-shop",
-                name=name,
-                category=cat,
-                unit=unit,
-                price=price,
-                description=desc,
-                is_sugar_free=is_sf
-            )
-            session.add(prod)
-            inv = SweetsInventory(
-                product=prod,
-                stock_quantity=stock,
-                batch_freshness_date="Today"
-            )
-            session.add(inv)
-            sweets_product_objs.append(prod)
+        for doc_id, m_id, title, d_type, content, is_pub in kb_data:
+            doc = await session.get(KnowledgeDocument, doc_id)
+            if not doc:
+                doc = KnowledgeDocument(
+                    id=doc_id,
+                    merchant_id=m_id,
+                    title=title,
+                    doc_type=d_type,
+                    content=content,
+                    embedding_status="indexed",
+                    is_published=is_pub
+                )
+                session.add(doc)
+            else:
+                doc.title = title
+                doc.doc_type = d_type
+                doc.content = content
+                doc.is_published = is_pub
+
+        await session.flush()
 
         # ----------------------------------------------------
-        # 3. GLOW SALON
+        # 3. PRODUCTS & SERVICES
         # ----------------------------------------------------
-        salon_merchant = Merchant(
-            id="glow-salon",
-            name="Glow & Glamour Salon",
-            slug="salon",
-            business_type="salon",
-            phone_number="+15550100003",
-            description="Luxury hair, skincare, and bridal salon offering personalized beauty and spa experiences."
-        )
-        session.add(salon_merchant)
-
-        salon_user = MerchantUser(
-            id="user-salon-admin",
-            merchant_id="glow-salon",
-            email="admin@glowsalon.com",
-            hashed_password=pwd_hash,
-            full_name="Elena Rostova",
-            role="admin"
-        )
-        session.add(salon_user)
-
-        salon_settings = MerchantSettings(
-            merchant_id="glow-salon",
-            business_hours="Tue-Sun: 10:00 AM - 8:00 PM (Closed Mondays)",
-            timezone="America/New_York",
-            notification_phone="+15550109993",
-            notification_channel="whatsapp",
-            escalation_message="Transferring you to our salon receptionist for customized beauty packages and stylist scheduling.",
-            welcome_message="Welcome to Glow & Glamour Salon! Ready to treat yourself? I can check stylist openings, explain services, and book your appointment.",
-            ai_provider="mock",
-            ai_model="default"
-        )
-        session.add(salon_settings)
-
-        # Salon Knowledge Docs
-        session.add(KnowledgeDocument(
-            merchant_id="glow-salon",
-            title="Salon Booking & Cancellation Guidelines",
-            doc_type="policy",
-            content="Appointments may be rescheduled or cancelled without fee up to 4 hours in advance. Please arrive 10 minutes prior to scheduled treatment. Complimentary beverages and consultation included with all hair and facial treatments.",
-            is_published=True
-        ))
-
-        # Salon Services
-        salon_services_data = [
-            ("Signature Haircut & Blowout", "Hair Care", 60, Decimal("65.00"), "Includes customized hair consultation, soothing scalp massage, precision cut, and blowout."),
-            ("Hydra-Glow Deep Cleansing Facial", "Skin & Facial", 75, Decimal("95.00"), "Deep pore extraction, ultrasonic exfoliation, and multi-peptide collagen infusion."),
-            ("Keratin Smoothing Therapy", "Hair Care", 120, Decimal("180.00"), "Formaldehyde-free smoothing treatment providing 4 months of frizz-free shine."),
-            ("Luxury Spa Gel Manicure & Pedicure", "Nails", 90, Decimal("75.00"), "Exfoliating sugar scrub, hot stone massage, cuticle care, and chip-free gel polish."),
-            ("Full Body Aromatherapy Massage", "Spa & Massage", 60, Decimal("110.00"), "Swedish relaxation massage utilizing customized organic essential oil blends.")
+        # A. Grocery Products (Section 4.A)
+        grocery_catalog = [
+            ("gprod-1", "Milk, 1 litre", "Dairy", "litre", Decimal("65.00"), 50, "Fresh pasteurized whole milk, 1 litre pouch."),
+            ("gprod-2", "Bread, 400 g", "Bakery", "pack", Decimal("45.00"), 40, "Soft sliced sandwich bread, 400 g loaf."),
+            ("gprod-3", "Eggs, 12 pack", "Dairy", "pack", Decimal("90.00"), 35, "Farm fresh white eggs, pack of 12."),
+            ("gprod-4", "Basmati rice, 1 kg", "Pantry", "kg", Decimal("120.00"), 60, "Premium long-grain aged basmati rice, 1 kg pack."),
+            ("gprod-5", "Apples, 1 kg", "Produce", "kg", Decimal("180.00"), 25, "Crisp sweet Royal Delicious apples, 1 kg."),
+            ("gprod-6", "Cooking oil, 1 litre", "Pantry", "litre", Decimal("160.00"), 30, "Pure refined sunflower cooking oil, 1 litre bottle."),
+            ("gprod-7", "Organic Almond Butter, 350 g", "Pantry", "jar", Decimal("450.00"), 0, "Stone-ground pure organic almond butter, currently out of stock.")
         ]
 
-        salon_service_objs = []
-        for name, cat, dur, price, desc in salon_services_data:
-            serv = SalonService(
-                merchant_id="glow-salon",
-                name=name,
-                category=cat,
-                duration_minutes=dur,
-                price=price,
-                description=desc
-            )
-            session.add(serv)
-            salon_service_objs.append(serv)
+        for p_id, name, cat, unit, price, stock, desc in grocery_catalog:
+            stmt = select(GroceryProduct).options(selectinload(GroceryProduct.inventory)).where(GroceryProduct.id == p_id)
+            prod = (await session.execute(stmt)).scalars().first()
+            if not prod:
+                prod = GroceryProduct(
+                    id=p_id,
+                    merchant_id="grocery-store",
+                    name=name,
+                    category=cat,
+                    unit=unit,
+                    price=price,
+                    description=desc,
+                    is_active=True
+                )
+                session.add(prod)
+                inv = GroceryInventory(
+                    id=f"inv-{p_id}",
+                    product=prod,
+                    stock_quantity=stock,
+                    low_stock_threshold=5
+                )
+                session.add(inv)
+            else:
+                prod.name = name
+                prod.category = cat
+                prod.unit = unit
+                prod.price = price
+                prod.description = desc
+                prod.is_active = True
+                if prod.inventory:
+                    prod.inventory.stock_quantity = stock
+                else:
+                    inv = GroceryInventory(id=f"inv-{p_id}", product_id=prod.id, stock_quantity=stock)
+                    session.add(inv)
+
+        # B. Sweets Products (Section 4.B)
+        sweets_catalog = [
+            ("sprod-1", "Gulab Jamun, 500 g", "Milk Sweets", "500g", Decimal("220.00"), 30, False, "Soft melt-in-mouth khoya gulab jamuns steeped in fragrant saffron sugar syrup."),
+            ("sprod-2", "Kaju Katli, 250 g", "Dry Fruit Sweets", "250g", Decimal("350.00"), 40, False, "Exquisite diamond-shaped cashew fudge crafted with Goan cashews."),
+            ("sprod-3", "Motichoor Laddu, 500 g", "Traditional Sweets", "500g", Decimal("280.00"), 25, False, "Fine melt-in-mouth gram flour pearls enriched with pure desi ghee."),
+            ("sprod-4", "Milk Cake, 500 g", "Milk Sweets", "500g", Decimal("300.00"), 20, False, "Traditional rich granular caramelized milk fudge with subtle cardamom."),
+            ("sprod-5", "Assorted Sweet Box", "Gift Boxes", "box", Decimal("499.00"), 50, False, "Festive gift box containing Kaju Katli, Gulab Jamun, Milk Cake, and Laddus."),
+            ("sprod-6", "Sugar-Free Anjeer Barfi, 250 g", "Dry Fruit Sweets", "250g", Decimal("420.00"), 0, True, "Naturally sweetened dry fig and nut barfi, currently out of stock.")
+        ]
+
+        for p_id, name, cat, unit, price, stock, is_sugar, desc in sweets_catalog:
+            stmt = select(SweetsProduct).options(selectinload(SweetsProduct.inventory)).where(SweetsProduct.id == p_id)
+            prod = (await session.execute(stmt)).scalars().first()
+            if not prod:
+                prod = SweetsProduct(
+                    id=p_id,
+                    merchant_id="sweets-shop",
+                    name=name,
+                    category=cat,
+                    unit=unit,
+                    price=price,
+                    description=desc,
+                    is_sugar_free=is_sugar,
+                    is_active=True
+                )
+                session.add(prod)
+                inv = SweetsInventory(
+                    id=f"inv-{p_id}",
+                    product=prod,
+                    stock_quantity=stock
+                )
+                session.add(inv)
+            else:
+                prod.name = name
+                prod.category = cat
+                prod.unit = unit
+                prod.price = price
+                prod.description = desc
+                prod.is_sugar_free = is_sugar
+                prod.is_active = True
+                if prod.inventory:
+                    prod.inventory.stock_quantity = stock
+                else:
+                    inv = SweetsInventory(id=f"inv-{p_id}", product_id=prod.id, stock_quantity=stock)
+                    session.add(inv)
+
+        # C. Salon Services (Section 4.C)
+        salon_catalog = [
+            ("sln-srv-1", "Haircut & Styling", "Hair Care", 45, Decimal("399.00"), "Custom precision haircut, shampoo wash, and blow-dry styling."),
+            ("sln-srv-2", "Hair Spa", "Hair Care", 60, Decimal("899.00"), "Deep nourishing scalp massage, hair mask, and aromatic steam treatment."),
+            ("sln-srv-3", "Hydra Facial", "Skin & Facial", 60, Decimal("1499.00"), "Intense medical-grade hydrating facial with vortex pore extraction."),
+            ("sln-srv-4", "Keratin Treatment", "Hair Care", 120, Decimal("2499.00"), "Smooth protein smoothing treatment eliminating frizz for up to 4 months."),
+            ("sln-srv-5", "Balayage & Styling", "Hair Care", 180, Decimal("2999.00"), "Freehand dimensional hair painting followed by gloss toner and blowout."),
+            ("sln-srv-6", "Bridal Makeup", "Bridal", 180, Decimal("4999.00"), "Complete high-definition bridal look with hairstyling, draping, and lashes.")
+        ]
+
+        for s_id, name, cat, dur, price, desc in salon_catalog:
+            serv = await session.get(SalonService, s_id)
+            if not serv:
+                serv = SalonService(
+                    id=s_id,
+                    merchant_id="glow-salon",
+                    name=name,
+                    category=cat,
+                    duration_minutes=dur,
+                    price=price,
+                    description=desc,
+                    is_active=True
+                )
+                session.add(serv)
+            else:
+                serv.name = name
+                serv.category = cat
+                serv.duration_minutes = dur
+                serv.price = price
+                serv.description = desc
+                serv.is_active = True
 
         # Salon Staff
-        staff_elena = SalonStaff(
-            merchant_id="glow-salon",
-            name="Elena Rostova",
-            role="Master Stylist",
-            specialties="Precision cuts, balayage, keratin smoothing"
-        )
-        staff_maya = SalonStaff(
-            merchant_id="glow-salon",
-            name="Maya Chen",
-            role="Senior Esthetician",
-            specialties="Hydra-facials, chemical peels, acne therapies"
-        )
-        session.add_all([staff_elena, staff_maya])
-        await session.flush()
-
-        # Salon Availability Slots (for tomorrow and day after)
-        tomorrow = date.today() + timedelta(days=1)
-        day_after = date.today() + timedelta(days=2)
-
-        for d in [tomorrow, day_after]:
-            for st, et in [(time(10, 0), time(11, 0)), (time(11, 30), time(12, 30)), (time(14, 0), time(15, 0)), (time(16, 0), time(17, 0))]:
-                session.add(SalonAvailability(
+        salon_staff_data = [
+            ("staff-elena", "Elena Rostova", "Master Stylist", "Precision cuts, balayage, keratin smoothing, hair spa"),
+            ("staff-priya", "Priya Sharma", "Senior Esthetician", "Hydra-facials, bridal makeup, skincare therapies")
+        ]
+        for st_id, name, role, spec in salon_staff_data:
+            st = await session.get(SalonStaff, st_id)
+            if not st:
+                st = SalonStaff(
+                    id=st_id,
                     merchant_id="glow-salon",
-                    staff_id=staff_elena.id,
-                    slot_date=d,
-                    start_time=st,
-                    end_time=et,
-                    is_booked=False
-                ))
-            for st, et in [(time(10, 30), time(11, 45)), (time(13, 0), time(14, 15)), (time(15, 30), time(16, 45))]:
-                session.add(SalonAvailability(
-                    merchant_id="glow-salon",
-                    staff_id=staff_maya.id,
-                    slot_date=d,
-                    start_time=st,
-                    end_time=et,
-                    is_booked=False
-                ))
+                    name=name,
+                    role=role,
+                    specialties=spec,
+                    is_active=True
+                )
+                session.add(st)
+            else:
+                st.name = name
+                st.role = role
+                st.specialties = spec
 
-        # ----------------------------------------------------
-        # 4. DENTAL CLINIC
-        # ----------------------------------------------------
-        dental_merchant = Merchant(
-            id="dental-clinic",
-            name="SmileCare Dental Clinic",
-            slug="dental",
-            business_type="dental",
-            phone_number="+15550100004",
-            description="Compassionate, state-of-the-art family and cosmetic dental care with gentle sedation options."
-        )
-        session.add(dental_merchant)
-
-        dental_user = MerchantUser(
-            id="user-dental-admin",
-            merchant_id="dental-clinic",
-            email="admin@smilecaredental.com",
-            hashed_password=pwd_hash,
-            full_name="Dr. Marcus Vance",
-            role="admin"
-        )
-        session.add(dental_user)
-
-        dental_settings = MerchantSettings(
-            merchant_id="dental-clinic",
-            business_hours="Mon-Fri: 8:00 AM - 5:00 PM (Emergency line on weekends)",
-            timezone="America/New_York",
-            notification_phone="+15550109994",
-            notification_channel="whatsapp",
-            escalation_message="I am connecting you with the SmileCare clinical front desk team for professional dental assistance.",
-            welcome_message="Welcome to SmileCare Dental Clinic! I can help you review our dental services, schedule cleanings or consultations, and find appointment slots.",
-            ai_provider="mock",
-            ai_model="default"
-        )
-        session.add(dental_settings)
-
-        # Dental Knowledge Docs
-        session.add(KnowledgeDocument(
-            merchant_id="dental-clinic",
-            title="SmileCare Appointment & Clinical Disclaimer Policy",
-            doc_type="policy",
-            content="SmileCare provides preventative, cosmetic, and emergency dental appointments. Vera is an administrative assistant and cannot diagnose symptoms, prescribe medications, or provide medical treatment advice. If you are experiencing severe swelling, uncontrollable bleeding, or difficulty breathing, please seek emergency medical attention or contact our emergency desk immediately.",
-            is_published=True
-        ))
-        session.add(KnowledgeDocument(
-            merchant_id="dental-clinic",
-            title="Dental Insurance and Payment Plans",
-            doc_type="faq",
-            content="We accept most PPO insurance plans including Delta Dental, MetLife, Cigna, and Guardian. Flexible 0% interest payment plans are available via CareCredit.",
-            is_published=True
-        ))
-
-        # Dental Services
-        dental_services_data = [
-            ("Comprehensive Dental Exam & Cleaning", "Preventative", 60, Decimal("120.00"), "Full oral cancer screening, periodontal charting, digital bitewing x-rays, and ultrasonic cleaning."),
-            ("Professional In-Office Teeth Whitening", "Cosmetic", 60, Decimal("299.00"), "Advanced LED-accelerated bleaching delivering up to 8 shades brighter in one hour."),
-            ("Emergency Toothache Consultation", "Emergency", 30, Decimal("85.00"), "Targeted diagnostic x-ray, clinical examination of pain site, and urgent stabilization plan."),
-            ("Invisalign & Orthodontic Evaluation", "Orthodontics", 45, Decimal("75.00"), "3D digital iTero scan and treatment simulation for clear aligners."),
-            ("Pediatric Dental Checkup (Under 12)", "Pediatric", 45, Decimal("90.00"), "Gentle fluoride treatment, gentle cleaning, cavity prevention sealing, and habit coaching.")
+        # D. Dental Clinic Services (Section 4.D)
+        dental_catalog = [
+            ("dnt-srv-1", "Dental Consultation", "Consultation", 30, Decimal("500.00"), "Comprehensive clinical exam, oral cancer screen, and treatment roadmap."),
+            ("dnt-srv-2", "Teeth Cleaning", "Preventative", 45, Decimal("1200.00"), "Full-mouth ultrasonic scaling and enamel polishing to remove calculus."),
+            ("dnt-srv-3", "Dental X-ray", "Diagnostic", 20, Decimal("800.00"), "High-resolution digital panoramic and periapical diagnostic radiography."),
+            ("dnt-srv-4", "Tooth Filling", "Restorative", 45, Decimal("1500.00"), "Tooth-colored biocompatible composite resin restorative filling."),
+            ("dnt-srv-5", "Follow-up Consultation", "Consultation", 20, Decimal("300.00"), "Post-operative clinical evaluation and bite adjustment check.")
         ]
 
-        dental_service_objs = []
-        for name, cat, dur, fee, desc in dental_services_data:
-            serv = DentalService(
-                merchant_id="dental-clinic",
-                name=name,
-                category=cat,
-                duration_minutes=dur,
-                consultation_fee=fee,
-                description=desc
-            )
-            session.add(serv)
-            dental_service_objs.append(serv)
+        for s_id, name, cat, dur, fee, desc in dental_catalog:
+            serv = await session.get(DentalService, s_id)
+            if not serv:
+                serv = DentalService(
+                    id=s_id,
+                    merchant_id="dental-clinic",
+                    name=name,
+                    category=cat,
+                    duration_minutes=dur,
+                    consultation_fee=fee,
+                    description=desc,
+                    is_active=True
+                )
+                session.add(serv)
+            else:
+                serv.name = name
+                serv.category = cat
+                serv.duration_minutes = dur
+                serv.consultation_fee = fee
+                serv.description = desc
+                serv.is_active = True
 
         # Dental Staff
-        dentist_marcus = DentalStaff(
-            merchant_id="dental-clinic",
-            name="Dr. Marcus Vance, DDS",
-            title="Lead Cosmetic Dentist",
-            license_number="DEN-98241",
-            specialties="Cosmetic veneers, smile makeovers, restorative crown work"
-        )
-        dentist_sarah = DentalStaff(
-            merchant_id="dental-clinic",
-            name="Dr. Sarah Lin, DMD",
-            title="Family & Pediatric Dentist",
-            license_number="DEN-87312",
-            specialties="Preventative hygiene, pediatric dentistry, gentle sedation"
-        )
-        session.add_all([dentist_marcus, dentist_sarah])
+        dental_staff_data = [
+            ("dentist-marcus", "Dr. Marcus Vance, DDS", "Senior Dental Surgeon", "DEN-98241", "Restorative crowns, fillings, oral exams"),
+            ("dentist-sarah", "Dr. Sarah Lin, DMD", "Family & Pediatric Dentist", "DEN-87312", "Preventative hygiene, teeth cleaning, diagnostic X-rays")
+        ]
+        for st_id, name, title, lic, spec in dental_staff_data:
+            st = await session.get(DentalStaff, st_id)
+            if not st:
+                st = DentalStaff(
+                    id=st_id,
+                    merchant_id="dental-clinic",
+                    name=name,
+                    title=title,
+                    license_number=lic,
+                    specialties=spec,
+                    is_active=True
+                )
+                session.add(st)
+            else:
+                st.name = name
+                st.title = title
+                st.license_number = lic
+                st.specialties = spec
+
         await session.flush()
 
-        # Dental Availability Slots
-        for d in [tomorrow, day_after]:
-            for st, et in [(time(9, 0), time(10, 0)), (time(10, 30), time(11, 30)), (time(13, 0), time(14, 0)), (time(14, 30), time(15, 30))]:
-                session.add(DentalAvailability(
-                    merchant_id="dental-clinic",
-                    dentist_id=dentist_marcus.id,
-                    slot_date=d,
-                    start_time=st,
-                    end_time=et,
-                    is_booked=False
-                ))
-            for st, et in [(time(9, 30), time(10, 15)), (time(11, 0), time(11, 45)), (time(13, 30), time(14, 15)), (time(15, 0), time(15, 45))]:
-                session.add(DentalAvailability(
-                    merchant_id="dental-clinic",
-                    dentist_id=dentist_sarah.id,
-                    slot_date=d,
-                    start_time=st,
-                    end_time=et,
-                    is_booked=False
-                ))
+        # ----------------------------------------------------
+        # 4. DYNAMIC AVAILABILITY SLOTS (Next 30 Days)
+        # ----------------------------------------------------
+        # Clear existing unbooked slots so we avoid slot conflicts and always have live slots for today + 30 days
+        await session.execute(delete(SalonAvailability).where(SalonAvailability.is_booked == False))
+        await session.execute(delete(DentalAvailability).where(DentalAvailability.is_booked == False))
 
-        # ----------------------------------------------------
-        # 5. SAMPLE CUSTOMERS & TRANSACTIONS
-        # ----------------------------------------------------
-        cust1 = Customer(
-            id="cust-alex",
-            whatsapp_phone="+15551234567",
-            name="Alex Morgan",
-            email="alex.morgan@example.com"
-        )
-        cust2 = Customer(
-            id="cust-priya",
-            whatsapp_phone="+15559876543",
-            name="Priya Sharma",
-            email="priya.sharma@example.com"
-        )
-        session.add_all([cust1, cust2])
+        today = date.today()
+        # Salon: Mon-Sat 10am-8pm, Sun 11am-6pm
+        salon_weekday_times = [(time(10, 0), time(11, 0)), (time(11, 30), time(12, 30)), (time(14, 0), time(15, 0)), (time(16, 0), time(17, 0)), (time(18, 0), time(19, 0))]
+        salon_sunday_times = [(time(11, 0), time(12, 0)), (time(12, 30), time(13, 30)), (time(14, 0), time(15, 0)), (time(15, 30), time(16, 30)), (time(17, 0), time(18, 0))]
+
+        # Dental: Mon-Sat 9am-6pm, Sun Closed
+        dental_weekday_times = [(time(9, 0), time(10, 0)), (time(10, 30), time(11, 30)), (time(13, 0), time(14, 0)), (time(14, 30), time(15, 30)), (time(16, 0), time(17, 0))]
+
+        for day_offset in range(30):
+            slot_d = today + timedelta(days=day_offset)
+            is_sunday = slot_d.weekday() == 6
+
+            # Salon Slots (Open Every Day: Mon-Sat 10-8, Sun 11-6)
+            s_times = salon_sunday_times if is_sunday else salon_weekday_times
+            for st, et in s_times:
+                for staff_id in ["staff-elena", "staff-priya"]:
+                    session.add(SalonAvailability(
+                        merchant_id="glow-salon",
+                        staff_id=staff_id,
+                        slot_date=slot_d,
+                        start_time=st,
+                        end_time=et,
+                        is_booked=False
+                    ))
+
+            # Dental Slots (Closed on Sundays!)
+            if not is_sunday:
+                for st, et in dental_weekday_times:
+                    for dentist_id in ["dentist-marcus", "dentist-sarah"]:
+                        session.add(DentalAvailability(
+                            merchant_id="dental-clinic",
+                            dentist_id=dentist_id,
+                            slot_date=slot_d,
+                            start_time=st,
+                            end_time=et,
+                            is_booked=False
+                        ))
+
         await session.flush()
 
-        # Customer merchant profiles (Strict Tenant Isolation)
-        session.add(CustomerMerchantProfile(
-            customer_id=cust1.id,
-            merchant_id="grocery-store",
-            preferred_name="Alex",
-            interaction_count=5,
-            notes="Prefers organic dairy and morning deliveries."
-        ))
-        session.add(CustomerMerchantProfile(
-            customer_id=cust1.id,
-            merchant_id="glow-salon",
-            preferred_name="Alex",
-            interaction_count=2,
-            notes="Prefers stylist Elena for haircuts."
-        ))
-        session.add(CustomerMerchantProfile(
-            customer_id=cust2.id,
-            merchant_id="sweets-shop",
-            preferred_name="Priya",
-            interaction_count=8,
-            notes="Regular customer for Diwali festive gift boxes."
-        ))
-        session.add(CustomerMerchantProfile(
-            customer_id=cust2.id,
-            merchant_id="dental-clinic",
-            preferred_name="Priya",
-            interaction_count=1,
-            notes="Interested in teeth whitening."
-        ))
+        # ----------------------------------------------------
+        # 5. TEST IDENTITIES & PROFILES (Section 3)
+        # Customer: 7319770043, Human Assistant: 9351489260
+        # ----------------------------------------------------
+        test_customer_phones = ["+7319770043", "7319770043"]
+        primary_cust_id = "cust-nexa-test"
 
-        # Sample Orders
-        g_order = GroceryOrder(
-            id="gord-1001",
-            order_number="GRO-1001",
-            merchant_id="grocery-store",
-            customer_id=cust1.id,
-            status="confirmed",
-            total_amount=Decimal("13.47"),
-            delivery_address="45 Elm St, Apt 3B, New York, NY",
-            notes="Leave at door"
-        )
-        session.add(g_order)
-        session.add(GroceryOrderItem(
-            order=g_order,
-            product_id=grocery_product_objs[0].id,
-            product_name="Organic Whole Milk 1 Gallon",
-            quantity=2,
-            unit_price=Decimal("4.99"),
-            total_price=Decimal("9.98")
-        ))
-        session.add(GroceryOrderItem(
-            order=g_order,
-            product_id=grocery_product_objs[1].id,
-            product_name="Farm Fresh Eggs (Dozen)",
-            quantity=1,
-            unit_price=Decimal("3.49"),
-            total_price=Decimal("3.49")
-        ))
+        cust = await session.get(Customer, primary_cust_id)
+        if not cust:
+            cust = Customer(
+                id=primary_cust_id,
+                whatsapp_phone="+7319770043",
+                name="Rajesh Kumar (Nexa Test)",
+                email="test.customer@nexa-ai.local"
+            )
+            session.add(cust)
+        else:
+            cust.whatsapp_phone = "+7319770043"
+            cust.name = "Rajesh Kumar (Nexa Test)"
 
-        s_order = SweetsOrder(
-            id="sord-2001",
-            order_number="SWT-2001",
-            merchant_id="sweets-shop",
-            customer_id=cust2.id,
-            status="confirmed",
-            total_amount=Decimal("44.00"),
-            order_type="pickup",
-            gift_packaging=True,
-            gift_message="Happy Birthday Uncle!"
-        )
-        session.add(s_order)
-        session.add(SweetsOrderItem(
-            order=s_order,
-            product_id=sweets_product_objs[0].id,
-            product_name="Premium Kaju Katli",
-            quantity=2,
-            unit_price=Decimal("22.00"),
-            total_price=Decimal("44.00")
-        ))
+        # Also support legacy test customer IDs so existing tests don't break
+        legacy_cust1 = await session.get(Customer, "cust-alex")
+        if not legacy_cust1:
+            session.add(Customer(id="cust-alex", whatsapp_phone="+15551234567", name="Alex Morgan", email="alex@example.com"))
+        legacy_cust2 = await session.get(Customer, "cust-priya")
+        if not legacy_cust2:
+            session.add(Customer(id="cust-priya", whatsapp_phone="+15559876543", name="Priya Sharma", email="priya@example.com"))
 
-        # Sample Appointments
-        salon_appt = SalonAppointment(
-            id="sappt-3001",
-            booking_reference="SLN-3001",
-            merchant_id="glow-salon",
-            customer_id=cust1.id,
-            service_id=salon_service_objs[0].id,
-            staff_id=staff_elena.id,
-            appointment_date=tomorrow,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-            status="confirmed",
-            notes="Wants layered cut"
-        )
-        session.add(salon_appt)
+        await session.flush()
 
-        dental_appt = DentalAppointment(
-            id="dappt-4001",
-            booking_reference="DNT-4001",
-            merchant_id="dental-clinic",
-            customer_id=cust2.id,
-            service_id=dental_service_objs[0].id,
-            dentist_id=dentist_marcus.id,
-            appointment_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-            status="confirmed",
-            chief_complaint="Routine checkup and plaque cleaning"
-        )
-        session.add(dental_appt)
+        # Establish customer profiles for primary test customer across all 4 merchants
+        for m_id in ["grocery-store", "sweets-shop", "glow-salon", "dental-clinic"]:
+            stmt = select(CustomerMerchantProfile).where(
+                CustomerMerchantProfile.customer_id == primary_cust_id,
+                CustomerMerchantProfile.merchant_id == m_id
+            )
+            prof = (await session.execute(stmt)).scalars().first()
+            if not prof:
+                session.add(CustomerMerchantProfile(
+                    customer_id=primary_cust_id,
+                    merchant_id=m_id,
+                    preferred_name="Rajesh",
+                    interaction_count=4,
+                    opt_in_promotions=True,
+                    notes=f"Test customer {test_customer_phones[0]} active in {m_id}"
+                ))
 
-        # Sample Escalation
-        escalation = SupportEscalation(
-            id="esc-001",
-            merchant_id="dental-clinic",
-            customer_id=cust1.id,
-            reason="Customer inquired about intense throbbing pain following wisdom tooth extraction. Safely referred to emergency care and front desk notified.",
-            category="dental_clinical",
-            status="pending",
-            urgency="high"
-        )
-        session.add(escalation)
+        # Also ensure legacy profiles exist
+        for cid, mid, name in [("cust-alex", "grocery-store", "Alex"), ("cust-alex", "glow-salon", "Alex"), ("cust-priya", "sweets-shop", "Priya"), ("cust-priya", "dental-clinic", "Priya")]:
+            stmt = select(CustomerMerchantProfile).where(CustomerMerchantProfile.customer_id == cid, CustomerMerchantProfile.merchant_id == mid)
+            if not (await session.execute(stmt)).scalars().first():
+                session.add(CustomerMerchantProfile(customer_id=cid, merchant_id=mid, preferred_name=name, interaction_count=2, opt_in_promotions=True))
 
-        # Audit Log
-        audit = AuditLog(
-            merchant_id="dental-clinic",
-            customer_phone="+15551234567",
-            action="GUARDRAIL_DENTAL_SAFETY_TRIGGERED",
-            resource_type="message",
-            status="success",
-            details_json={"note": "Redirected clinical diagnosis query to licensed dentist"}
-        )
-        session.add(audit)
+        await session.flush()
+
+        # ----------------------------------------------------
+        # 6. TRANSACTIONS, APPOINTMENTS & ESCALATIONS
+        # ----------------------------------------------------
+        # Sample Grocery Order
+        gord = await session.get(GroceryOrder, "gord-nexa-1001")
+        if not gord:
+            gord = GroceryOrder(
+                id="gord-nexa-1001",
+                order_number="GRO-2026-1001",
+                merchant_id="grocery-store",
+                customer_id=primary_cust_id,
+                status="confirmed",
+                total_amount=Decimal("220.00"),
+                delivery_address="Flat 402, Green Valley Apts, Test City",
+                notes="Delivered to customer"
+            )
+            session.add(gord)
+            session.add(GroceryOrderItem(order=gord, product_id="gprod-1", product_name="Milk, 1 litre", quantity=2, unit_price=Decimal("65.00"), total_price=Decimal("130.00")))
+            session.add(GroceryOrderItem(order=gord, product_id="gprod-3", product_name="Eggs, 12 pack", quantity=1, unit_price=Decimal("90.00"), total_price=Decimal("90.00")))
+
+        # Sample Sweets Order
+        sord = await session.get(SweetsOrder, "sord-nexa-2001")
+        if not sord:
+            sord = SweetsOrder(
+                id="sord-nexa-2001",
+                order_number="SWT-2026-2001",
+                merchant_id="sweets-shop",
+                customer_id=primary_cust_id,
+                status="confirmed",
+                total_amount=Decimal("499.00"),
+                order_type="pickup",
+                gift_packaging=True,
+                gift_message="Happy Celebrations from Nexa!"
+            )
+            session.add(sord)
+            session.add(SweetsOrderItem(order=sord, product_id="sprod-5", product_name="Assorted Sweet Box", quantity=1, unit_price=Decimal("499.00"), total_price=Decimal("499.00")))
+
+        # Sample Salon Appointment
+        sappt = await session.get(SalonAppointment, "sappt-nexa-3001")
+        tomorrow = today + timedelta(days=1)
+        if not sappt:
+            sappt = SalonAppointment(
+                id="sappt-nexa-3001",
+                booking_reference="SLN-2026-3001",
+                merchant_id="glow-salon",
+                customer_id=primary_cust_id,
+                service_id="sln-srv-2",
+                staff_id="staff-elena",
+                appointment_date=tomorrow,
+                start_time=time(11, 0),
+                end_time=time(12, 0),
+                status="confirmed",
+                notes="Hair Spa introductory appointment"
+            )
+            session.add(sappt)
+
+        # Sample Dental Appointment (ensure open day)
+        dental_date = tomorrow if tomorrow.weekday() != 6 else tomorrow + timedelta(days=1)
+        dappt = await session.get(DentalAppointment, "dappt-nexa-4001")
+        if not dappt:
+            dappt = DentalAppointment(
+                id="dappt-nexa-4001",
+                booking_reference="DNT-2026-4001",
+                merchant_id="dental-clinic",
+                customer_id=primary_cust_id,
+                service_id="dnt-srv-1",
+                dentist_id="dentist-marcus",
+                appointment_date=dental_date,
+                start_time=time(10, 30),
+                end_time=time(11, 0),
+                status="confirmed",
+                chief_complaint="Routine initial dental checkup"
+            )
+            session.add(dappt)
+
+        # Support Escalations (Section 10)
+        esc1 = await session.get(SupportEscalation, "esc-nexa-dental-01")
+        if not esc1:
+            esc1 = SupportEscalation(
+                id="esc-nexa-dental-01",
+                merchant_id="dental-clinic",
+                customer_id=primary_cust_id,
+                reason="Customer requested consultation regarding acute dental discomfort. Safely triaged to human clinical assistant at 9351489260.",
+                category="dental_clinical",
+                status="pending",
+                urgency="high",
+                assigned_to="9351489260"
+            )
+            session.add(esc1)
+
+        esc2 = await session.get(SupportEscalation, "esc-nexa-gro-02")
+        if not esc2:
+            esc2 = SupportEscalation(
+                id="esc-nexa-gro-02",
+                merchant_id="grocery-store",
+                customer_id=primary_cust_id,
+                reason="Customer inquired about delivery schedule change for order GRO-2026-1001.",
+                category="general",
+                status="resolved",
+                urgency="medium",
+                assigned_to="9351489260",
+                resolution_notes="Delivery window confirmed with customer."
+            )
+            session.add(esc2)
+
+        # Notification Jobs
+        stmt = select(NotificationJob).where(NotificationJob.id == "notif-job-1001")
+        if not (await session.execute(stmt)).scalars().first():
+            job = NotificationJob(
+                id="notif-job-1001",
+                merchant_id="grocery-store",
+                customer_id=primary_cust_id,
+                event_type="order.created",
+                status="sent",
+                payload_json={"order_number": "GRO-2026-1001", "total_amount": 220.00, "customer_phone": "7319770043"}
+            )
+            session.add(job)
+            session.add(NotificationEvent(
+                id="notif-evt-1001",
+                job_id="notif-job-1001",
+                merchant_id="grocery-store",
+                event_type="order.created",
+                status="delivered",
+                provider_response={"simulation": True, "recipient": "7319770043"}
+            ))
 
         await session.commit()
-        print("Database successfully seeded with 4 merchants, products, services, slots, and demo transactions!")
+        print("Idempotent seed completed successfully!")
+        print("4 Merchants, Products (INR), Services (INR), Dynamic 30-Day Slots, Test Customer 7319770043 & Assistant 9351489260 ready.")
 
 if __name__ == "__main__":
     asyncio.run(seed_data())

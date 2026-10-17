@@ -20,7 +20,8 @@ class DentalSafetyGuardrail:
     EMERGENCY_PATTERNS = [
         r"(uncontrollable|heavy|severe)\s+bleeding",
         r"(difficulty|trouble|can't)\s+(breathing|swallowing)",
-        r"(extreme|unbearable|excruciating)\s+(pain|swelling|infection)",
+        r"(severe|acute|intense|extreme|unbearable|excruciating)\s+(dental\s+)?(pain|toothache|swelling|infection)",
+        r"(facial\s+swelling|swollen\s+face|swollen\s+jaw)",
         r"(broken|fractured)\s+jaw",
         r"(facial\s+trauma|knocked\s+out\s+tooth)",
         r"(high\s+fever\s+with\s+tooth\s+pain)"
@@ -52,9 +53,9 @@ class DentalSafetyGuardrail:
             if pattern.search(lowered):
                 emergency_msg = (
                     "⚠️ Urgent Medical Advisory: Your symptoms may indicate a medical emergency. "
-                    "Vera cannot provide medical diagnoses or emergency triage. "
+                    "Nexa cannot provide medical diagnoses or emergency triage. "
                     "Please visit your nearest hospital emergency room, urgent care center, "
-                    "or call our emergency front desk immediately at +1-555-010-9994."
+                    "or call our emergency front desk immediately."
                 )
                 return DentalSafetyResult(
                     is_clinical_query=True,

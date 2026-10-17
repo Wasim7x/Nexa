@@ -50,10 +50,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeMerchant, onSelectMerchant
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <span className="font-extrabold text-white text-lg tracking-wider">V</span>
+            <span className="font-extrabold text-white text-lg tracking-wider">N</span>
           </div>
           <div>
-            <h1 className="font-bold text-lg text-white leading-none tracking-tight">Vera</h1>
+            <h1 className="font-bold text-lg text-white leading-none tracking-tight">Nexa</h1>
             <p className="text-[10px] text-emerald-400 font-medium tracking-wide uppercase">Multi-Merchant AI</p>
           </div>
         </div>

@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Vera: Multi-Merchant WhatsApp AI Assistant with LangGraph, MCP, and Strict AI Guardrails",
+    description="Nexa: Multi-Merchant WhatsApp AI Assistant with LangGraph, MCP, and Strict AI Guardrails",
     lifespan=lifespan
 )
 

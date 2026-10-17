@@ -119,7 +119,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ activeMerchant }
         <div className="p-12 text-center rounded-2xl bg-slate-800/30 border border-slate-800/60">
           <Clock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-300">No {isAppointment ? 'appointments' : 'orders'} found</h3>
-          <p className="text-sm text-slate-500 mt-1">Orders or bookings placed through Vera will be listed here.</p>
+          <p className="text-sm text-slate-500 mt-1">Orders or bookings placed through Nexa will be listed here.</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl">
@@ -165,7 +165,7 @@ export const OperationsPage: React.FC<OperationsPageProps> = ({ activeMerchant }
                         <p className="text-xs text-slate-400">{r.time}</p>
                       </div>
                     ) : (
-                      <span className="font-bold text-white">${r.total?.toFixed(2) || '0.00'}</span>
+                      <span className="font-bold text-white">₹{r.total?.toFixed(2) || '0.00'}</span>
                     )}
                   </td>
 

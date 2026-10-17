@@ -7,9 +7,9 @@ from backend.app.mcp.tools import MCPBusinessTools
 
 # Initialize official MCP Server
 mcp_server = MCPServer(
-    name="vera-merchant-mcp",
+    name="nexa-merchant-mcp",
     version="1.0.0",
-    instructions="Vera Multi-Merchant Business Tools for grocery, sweets, salon, and dental clinic."
+    instructions="Nexa Multi-Merchant Business Tools for grocery, sweets, salon, and dental clinic."
 )
 
 # Registry mapping tool name -> method in MCPBusinessTools

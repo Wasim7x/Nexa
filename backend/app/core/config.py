@@ -10,7 +10,7 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    APP_NAME: str = "Vera Multi-Merchant WhatsApp AI Assistant"
+    APP_NAME: str = "Nexa — Multi-Merchant AI Assistant"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"  # 'development' or 'production'
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str = ""
     WHATSAPP_BUSINESS_ACCOUNT_ID: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
-    WHATSAPP_VERIFY_TOKEN: str = "vera_whatsapp_verify_token_secure_2026"
+    WHATSAPP_VERIFY_TOKEN: str = "nexa_whatsapp_verify_token_secure_2026"
     WHATSAPP_API_VERSION: str = "v21.0"
     WHATSAPP_APP_SECRET: str = ""
     USE_MOCK_WHATSAPP: bool = True  # When True, simulator and mock transport are active

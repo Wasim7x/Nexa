@@ -222,7 +222,7 @@ export const IntegrationsPage: React.FC<IntegrationsPageProps> = ({ activeMercha
                 https://your-domain.com/api/whatsapp/webhook
               </code>
               <p className="text-[11px] text-slate-400 mt-1">
-                Verify Token: <code className="text-white">vera_whatsapp_verify_token_secure_2026</code>
+                Verify Token: <code className="text-white">nexa_whatsapp_verify_token_secure_2026</code>
               </p>
             </div>
           </div>

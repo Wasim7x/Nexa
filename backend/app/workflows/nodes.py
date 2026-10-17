@@ -18,6 +18,7 @@ from backend.app.guardrails.audit_logger import AuditLogger
 from backend.app.mcp.context import MCPCallContext
 from backend.app.mcp.server import execute_mcp_tool
 from backend.app.services.customer_service import CustomerService
+from backend.app.services.escalation_service import EscalationService
 from backend.app.models.shared import Merchant, KnowledgeDocument, Message, Conversation
 from backend.app.ai.router import get_ai_provider
 
@@ -61,7 +62,9 @@ async def node_identify_customer(state: VeraWorkflowState) -> VeraWorkflowState:
     async with AsyncSessionLocal() as session:
         customer = await CustomerService.get_or_create_customer(session, whatsapp_phone=phone)
         conversation = await CustomerService.get_or_create_conversation(session, customer.id)
-        active_merchant = conversation.active_merchant_id or state.get("active_merchant_id")
+        active_merchant = state.get("active_merchant_id") or conversation.active_merchant_id
+        if state.get("active_merchant_id") and conversation.active_merchant_id != state.get("active_merchant_id"):
+            conversation.active_merchant_id = state.get("active_merchant_id")
         await session.commit()
 
         return {
@@ -134,7 +137,38 @@ async def node_guardrails_check(state: VeraWorkflowState) -> VeraWorkflowState:
             "response_text": pol_msg
         }
 
-    # 3. Dental Clinic Safety Guardrail
+    # 3. Explicit Human Escalation Check
+    human_patterns = [
+        r"(connect|talk|speak|transfer)\s+(me\s+)?(to\s+)?(a\s+)?(human|agent|person|representative|support|manager|staff)",
+        r"(need|want)\s+.*(human|representative|support|agent)",
+        r"connect\s+me\s+to\s+a\s+human",
+        r"please\s+connect\s+me\s+to\s+a\s+human"
+    ]
+    is_human_request = any(re.search(pat, clean_text.lower()) for pat in human_patterns)
+    if is_human_request:
+        esc_merchant = state_updates.get("active_merchant_id") or active_merchant or "grocery-store"
+        cust_id = state.get("customer_id")
+        conv_id = state.get("conversation_id")
+        async with AsyncSessionLocal() as session:
+            esc_res = await EscalationService.create_escalation(
+                session=session,
+                merchant_id=esc_merchant,
+                customer_id=cust_id,
+                conversation_id=conv_id,
+                reason=f"Customer requested human assistant: {clean_text[:120]}",
+                category="general",
+                urgency="high"
+            )
+            await session.commit()
+        customer_msg = esc_res.get("customer_message") or "I am connecting you with a human assistant. Our team will contact you shortly."
+        return {
+            **state,
+            **state_updates,
+            "is_escalated": True,
+            "response_text": customer_msg
+        }
+
+    # 4. Dental Clinic Safety Guardrail
     current_merchant = state_updates.get("active_merchant_id") or active_merchant
     if current_merchant == "dental-clinic":
         dental_res = DentalSafetyGuardrail.evaluate(clean_text)
@@ -146,10 +180,26 @@ async def node_guardrails_check(state: VeraWorkflowState) -> VeraWorkflowState:
                 merchant_id="dental-clinic",
                 details={"is_emergency": dental_res.is_emergency, "reason": dental_res.reason}
             )
+            cust_id = state.get("customer_id")
+            conv_id = state.get("conversation_id")
+            if cust_id:
+                async with AsyncSessionLocal() as session:
+                    await EscalationService.create_escalation(
+                        session=session,
+                        merchant_id="dental-clinic",
+                        customer_id=cust_id,
+                        conversation_id=conv_id,
+                        reason=f"Clinical safety triggered: {clean_text[:120]}",
+                        category="dental_clinical",
+                        urgency="emergency" if dental_res.is_emergency else "high"
+                    )
+                    await session.commit()
+
             return {
                 **state,
                 **state_updates,
                 "dental_safety_triggered": True,
+                "is_escalated": True,
                 "dental_safety_response": dental_res.refusal_message,
                 "response_text": dental_res.refusal_message
             }
@@ -334,7 +384,7 @@ async def node_synthesize_and_validate(state: VeraWorkflowState) -> VeraWorkflow
     # Generate response via configured AI provider
     provider = get_ai_provider()
     system_prompt = (
-        f"You are Vera, the official AI WhatsApp assistant for {merchant_id}. "
+        f"You are Nexa, the official AI WhatsApp assistant for {merchant_id}. "
         "Answer the customer's query clearly, politely, and concisely (under 3 sentences). "
         "Strict Rule: Rely ONLY on the verified Store Knowledge and Authoritative Tool Data provided below. "
         "Never invent prices, stock numbers, or appointment slots. If information is not in the data, state that helpfully."

@@ -26,7 +26,7 @@ class PolicyEngine:
     )
 
     MERCHANT_SELECTION_PROMPT = (
-        "Hello! I am Vera, your multi-merchant assistant. Which merchant would you like to interact with?\n"
+        "Hello! I am Nexa, your multi-merchant assistant. Which merchant would you like to interact with?\n"
         "1️⃣ FreshMart Grocery (groceries & pantry)\n"
         "2️⃣ Royal Sweets & Delights (mithai & gift hampers)\n"
         "3️⃣ Glow Salon (hair, facials & spa)\n"

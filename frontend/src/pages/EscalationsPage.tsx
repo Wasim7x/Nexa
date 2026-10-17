@@ -58,7 +58,7 @@ export const EscalationsPage: React.FC<EscalationsPageProps> = ({ activeMerchant
           <span>Human Support & Conversation Takeover</span>
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          When Vera escalates disputes, complex queries, or dental safety flags, they are queued here for staff resolution.
+          When Nexa escalates disputes, complex queries, or dental safety flags, they are queued here for staff resolution.
         </p>
       </div>
 
@@ -149,7 +149,7 @@ export const EscalationsPage: React.FC<EscalationsPageProps> = ({ activeMerchant
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
             <h3 className="text-lg font-bold text-white">Resolve Ticket & Resume AI Assistant</h3>
             <p className="text-xs text-slate-400">
-              Provide resolution notes. Once submitted, human takeover mode will end and Vera will resume assisting the customer.
+              Provide resolution notes. Once submitted, human takeover mode will end and Nexa will resume assisting the customer.
             </p>
 
             <form onSubmit={handleResolve} className="space-y-4">

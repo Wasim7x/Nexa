@@ -132,27 +132,35 @@ class QueryClassifier:
                 )
 
         # 6. Merchant Intent Identification
-        detected_domain = None
+        def count_keywords(kws: List[str]) -> int:
+            cnt = 0
+            for kw in kws:
+                pattern = r'\b' + re.escape(kw) + r'\b'
+                if re.search(pattern, lowered):
+                    cnt += 1
+            return cnt
+
         domain_scores = {
-            "grocery": sum(1 for kw in cls.GROCERY_KEYWORDS if kw in lowered),
-            "sweets": sum(1 for kw in cls.SWEETS_KEYWORDS if kw in lowered),
-            "salon": sum(1 for kw in cls.SALON_KEYWORDS if kw in lowered),
-            "dental": sum(1 for kw in cls.DENTAL_KEYWORDS if kw in lowered),
+            "grocery": count_keywords(cls.GROCERY_KEYWORDS),
+            "sweets": count_keywords(cls.SWEETS_KEYWORDS),
+            "salon": count_keywords(cls.SALON_KEYWORDS),
+            "dental": count_keywords(cls.DENTAL_KEYWORDS),
         }
 
-        # Check explicit merchant mentions
-        if "freshmart" in lowered or "grocery" in lowered:
-            domain_scores["grocery"] += 3
-        if "royal sweets" in lowered or "sweet shop" in lowered:
-            domain_scores["sweets"] += 3
-        if "glow salon" in lowered or "glamour" in lowered:
-            domain_scores["salon"] += 3
-        if "smilecare" in lowered or "dental clinic" in lowered:
-            domain_scores["dental"] += 3
+        # If "facial swelling" or dental symptoms are present, prioritize dental and zero salon
+        if any(term in lowered for term in ["facial swelling", "dental pain", "toothache", "tooth pain", "severe pain", "swelling"]):
+            domain_scores["dental"] += 4
+            domain_scores["salon"] = 0
 
-        best_domain = max(domain_scores, key=domain_scores.get)
-        if domain_scores[best_domain] > 0:
-            detected_domain = best_domain
+        # Check explicit merchant mentions
+        if "freshmart" in lowered or ("grocery" in lowered and ("store" in lowered or "order" in lowered)):
+            domain_scores["grocery"] += 4
+        if "royal sweets" in lowered or "sweet shop" in lowered or "delights" in lowered:
+            domain_scores["sweets"] += 4
+        if "glow salon" in lowered or "glamour" in lowered:
+            domain_scores["salon"] += 4
+        if "smilecare" in lowered or "dental clinic" in lowered:
+            domain_scores["dental"] += 4
 
         # Map domain name to merchant ID
         domain_to_id = {
@@ -161,12 +169,31 @@ class QueryClassifier:
             "salon": "glow-salon",
             "dental": "dental-clinic"
         }
+        id_to_domain = {v: k for k, v in domain_to_id.items()}
+
+        # Context affinity: give active merchant preference so generic queries stay in active context
+        active_domain = id_to_domain.get(active_merchant_id) if active_merchant_id else None
+        if active_domain:
+            domain_scores[active_domain] += 2
+
+        best_domain = max(domain_scores, key=domain_scores.get)
+        detected_domain = None
+        if domain_scores[best_domain] > 0:
+            detected_domain = best_domain
+
         detected_merchant_id = domain_to_id.get(detected_domain) if detected_domain else None
 
         # Check if user is requesting a context switch
         is_switch = False
         if detected_merchant_id and active_merchant_id and detected_merchant_id != active_merchant_id:
-            is_switch = True
+            other_score = domain_scores[detected_domain]
+            active_score = domain_scores.get(active_domain, 0)
+            brand_mentions = ["freshmart", "royal sweets", "glow salon", "smilecare"]
+            if other_score > active_score + 1 or any(b in lowered for b in brand_mentions):
+                is_switch = True
+            else:
+                detected_merchant_id = active_merchant_id
+                detected_domain = active_domain
 
         # Common business actions (orders, appointments, cancellations, greetings)
         business_action_words = [

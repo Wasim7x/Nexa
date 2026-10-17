@@ -142,7 +142,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ activeMerchant, onNa
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-white mt-3">${(stats?.total_revenue || 0).toFixed(2)}</p>
+          <p className="text-3xl font-bold text-white mt-3">₹{(stats?.total_revenue || 0).toFixed(2)}</p>
           <p className="text-xs text-emerald-400 flex items-center gap-1 mt-2 font-medium">
             <ArrowUpRight className="w-3.5 h-3.5" />
             <span>Authoritative sales</span>
@@ -201,7 +201,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ activeMerchant, onNa
 
         {/* Quick Diagnostics */}
         <div className="p-6 rounded-2xl bg-slate-800/60 border border-slate-800 space-y-4">
-          <h3 className="font-bold text-lg text-white">Vera System Health</h3>
+          <h3 className="font-bold text-lg text-white">Nexa System Health</h3>
           <p className="text-xs text-slate-400">Core assistant status and guardrail metrics</p>
 
           <div className="space-y-3 pt-2">

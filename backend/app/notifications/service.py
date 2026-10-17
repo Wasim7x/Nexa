@@ -104,6 +104,15 @@ class NotificationService:
                 merch_name, payload.get("service_name", ""), payload.get("date", ""),
                 payload.get("time", ""), payload.get("booking_reference", "")
             )
+        elif job.event_type == "appointment.rescheduled":
+            msg_text = NotificationTemplates.render_appointment_rescheduled(
+                merch_name, payload.get("service_name", ""), payload.get("new_date", ""),
+                payload.get("new_time", ""), payload.get("booking_reference", "")
+            )
+        elif job.event_type == "appointment.cancelled":
+            msg_text = NotificationTemplates.render_appointment_cancelled(
+                merch_name, payload.get("service_name", ""), payload.get("booking_reference", "")
+            )
         elif job.event_type == "appointment.reminder_due":
             msg_text = NotificationTemplates.render_appointment_reminder(
                 merch_name, payload.get("service_name", ""), payload.get("time", ""),

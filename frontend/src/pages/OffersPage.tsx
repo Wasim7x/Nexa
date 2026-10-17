@@ -119,7 +119,7 @@ export const OffersPage: React.FC<OffersPageProps> = ({ activeMerchant }) => {
 
               <div className="mt-5 pt-3 border-t border-slate-800/60 text-xs text-slate-500 flex items-center justify-between">
                 <span>Created {new Date(off.created_at).toLocaleDateString()}</span>
-                <span className="text-emerald-400 font-medium">Synced with Vera AI</span>
+                <span className="text-emerald-400 font-medium">Synced with Nexa AI</span>
               </div>
             </div>
           ))}

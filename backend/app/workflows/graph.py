@@ -41,11 +41,14 @@ def create_vera_workflow() -> StateGraph:
 
 # Compile global app workflow
 vera_graph = create_vera_workflow()
+nexa_graph = vera_graph
+create_nexa_workflow = create_vera_workflow
 
 async def process_whatsapp_message(
     sender_phone: str,
     message_text: str,
-    referral_merchant_slug: Optional[str] = None
+    referral_merchant_slug: Optional[str] = None,
+    active_merchant_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Main entry point for processing incoming WhatsApp messages.
@@ -55,6 +58,7 @@ async def process_whatsapp_message(
         "sender_phone": sender_phone,
         "raw_message": message_text,
         "referral_merchant_slug": referral_merchant_slug,
+        "active_merchant_id": active_merchant_id,
         "retrieved_knowledge": [],
         "security_events": [],
         "rate_limited": False,
@@ -64,7 +68,7 @@ async def process_whatsapp_message(
         "context_switched": False
     }
 
-    final_state = await vera_graph.ainvoke(initial_state)
+    final_state = await nexa_graph.ainvoke(initial_state)
 
     return {
         "sender_phone": final_state.get("sender_phone"),

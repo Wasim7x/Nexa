@@ -1,13 +1,13 @@
-# Vera: A Secure Multi-Merchant WhatsApp AI Assistant
+# Nexa: A Secure Multi-Merchant WhatsApp AI Assistant
 
-**Vera** is a production-oriented, multi-merchant AI assistant that enables customers to interact with multiple independent merchants through a unified WhatsApp interface:
+**Nexa — Multi-Merchant AI Assistant** is a production-oriented AI platform that enables customers to interact with multiple independent merchants through a unified WhatsApp interface:
 
 1. **FreshMart Grocery** (Organic produce, dairy, bakery, and pantry staples)
 2. **Royal Sweets & Delights** (Artisanal mithai, festive gift hampers, sugar-free sweets)
-3. **Glow & Glamour Salon** (Hair treatments, facial therapies, manicures, and spa bookings)
+3. **Glow Salon** (Hair treatments, facial therapies, manicures, and spa bookings)
 4. **SmileCare Dental Clinic** (Examinations, cleanings, cosmetic whitening, and clinical triage)
 
-Vera automatically identifies the intended merchant, loads isolated tenant data, executes authorized business operations via the official **Model Context Protocol (MCP)**, enforces multi-layered AI guardrails, prevents clinical malpractice, and escalates complex queries to human staff.
+Nexa automatically identifies the intended merchant, loads isolated tenant data, executes authorized business operations via the official **Model Context Protocol (MCP)**, enforces multi-layered AI guardrails, prevents clinical malpractice, and escalates complex queries to human staff.
 
 ---
 
@@ -171,7 +171,7 @@ python -m pytest backend/tests/ -v
 1. In the **Meta for Developers Console**, navigate to your WhatsApp Business App.
 2. In the **Configuration** tab, set:
    - **Callback URL**: `https://your-domain.com/api/whatsapp/webhook`
-   - **Verify Token**: `vera_whatsapp_verify_token_secure_2026`
+   - **Verify Token**: `nexa_whatsapp_verify_token_secure_2026`
 3. Subscribe to the `messages` webhook field.
 4. Copy your **Phone Number ID**, **WhatsApp Business Account ID**, and **Permanent Access Token** into `.env`.
 5. Set `USE_MOCK_WHATSAPP="false"` in `.env` to enable live delivery.

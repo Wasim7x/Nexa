@@ -1,6 +1,6 @@
 from typing import TypedDict, Optional, List, Dict, Any
 
-class VeraWorkflowState(TypedDict, total=False):
+class NexaWorkflowState(TypedDict, total=False):
     # Customer & Channel Info
     sender_phone: str
     raw_message: str
@@ -32,3 +32,7 @@ class VeraWorkflowState(TypedDict, total=False):
     response_text: str
     error_message: Optional[str]
     security_events: List[str]
+    active_merchant_id: Optional[str]
+
+# Backward compatibility alias
+VeraWorkflowState = NexaWorkflowState

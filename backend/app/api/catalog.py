@@ -204,3 +204,197 @@ async def update_item_stock(
         return {"item_id": item_id, "stock_quantity": inv.stock_quantity}
 
     raise HTTPException(status_code=400, detail="Inventory adjustments not applicable for services")
+
+
+class ProductUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    price: Optional[float] = None
+    unit: Optional[str] = None
+    stock_quantity: Optional[int] = None
+    description: Optional[str] = None
+    is_sugar_free: Optional[bool] = None
+    duration_minutes: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+@router.put("/items/{item_id}")
+async def update_catalog_item(
+    item_id: str,
+    req: ProductUpdateRequest,
+    merchant: Merchant = Depends(get_current_merchant),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update catalog item attributes for current merchant."""
+    m_id = merchant.id
+    b_type = merchant.business_type
+
+    if b_type == "grocery":
+        stmt = select(GroceryProduct).options(selectinload(GroceryProduct.inventory)).where(
+            GroceryProduct.id == item_id,
+            GroceryProduct.merchant_id == m_id
+        )
+        prod = (await db.execute(stmt)).scalars().first()
+        if not prod:
+            raise HTTPException(status_code=404, detail="Product not found")
+        if req.name is not None:
+            prod.name = req.name
+        if req.category is not None:
+            prod.category = req.category
+        if req.unit is not None:
+            prod.unit = req.unit
+        if req.price is not None:
+            prod.price = Decimal(str(req.price))
+        if req.description is not None:
+            prod.description = req.description
+        if req.is_active is not None:
+            prod.is_active = req.is_active
+        if req.stock_quantity is not None:
+            if prod.inventory:
+                prod.inventory.stock_quantity = req.stock_quantity
+            else:
+                inv = GroceryInventory(product_id=prod.id, stock_quantity=req.stock_quantity)
+                db.add(inv)
+        await db.commit()
+        return {"id": prod.id, "name": prod.name, "status": "updated"}
+
+    elif b_type == "sweets":
+        stmt = select(SweetsProduct).options(selectinload(SweetsProduct.inventory)).where(
+            SweetsProduct.id == item_id,
+            SweetsProduct.merchant_id == m_id
+        )
+        prod = (await db.execute(stmt)).scalars().first()
+        if not prod:
+            raise HTTPException(status_code=404, detail="Product not found")
+        if req.name is not None:
+            prod.name = req.name
+        if req.category is not None:
+            prod.category = req.category
+        if req.unit is not None:
+            prod.unit = req.unit
+        if req.price is not None:
+            prod.price = Decimal(str(req.price))
+        if req.description is not None:
+            prod.description = req.description
+        if req.is_sugar_free is not None:
+            prod.is_sugar_free = req.is_sugar_free
+        if req.is_active is not None:
+            prod.is_active = req.is_active
+        if req.stock_quantity is not None:
+            if prod.inventory:
+                prod.inventory.stock_quantity = req.stock_quantity
+            else:
+                inv = SweetsInventory(product_id=prod.id, stock_quantity=req.stock_quantity)
+                db.add(inv)
+        await db.commit()
+        return {"id": prod.id, "name": prod.name, "status": "updated"}
+
+    elif b_type == "salon":
+        stmt = select(SalonService).where(
+            SalonService.id == item_id,
+            SalonService.merchant_id == m_id
+        )
+        serv = (await db.execute(stmt)).scalars().first()
+        if not serv:
+            raise HTTPException(status_code=404, detail="Service not found")
+        if req.name is not None:
+            serv.name = req.name
+        if req.category is not None:
+            serv.category = req.category
+        if req.duration_minutes is not None:
+            serv.duration_minutes = req.duration_minutes
+        if req.price is not None:
+            serv.price = Decimal(str(req.price))
+        if req.description is not None:
+            serv.description = req.description
+        if req.is_active is not None:
+            serv.is_active = req.is_active
+        await db.commit()
+        return {"id": serv.id, "name": serv.name, "status": "updated"}
+
+    elif b_type == "dental":
+        stmt = select(DentalService).where(
+            DentalService.id == item_id,
+            DentalService.merchant_id == m_id
+        )
+        serv = (await db.execute(stmt)).scalars().first()
+        if not serv:
+            raise HTTPException(status_code=404, detail="Service not found")
+        if req.name is not None:
+            serv.name = req.name
+        if req.category is not None:
+            serv.category = req.category
+        if req.duration_minutes is not None:
+            serv.duration_minutes = req.duration_minutes
+        if req.price is not None:
+            serv.consultation_fee = Decimal(str(req.price))
+        if req.description is not None:
+            serv.description = req.description
+        if req.is_active is not None:
+            serv.is_active = req.is_active
+        await db.commit()
+        return {"id": serv.id, "name": serv.name, "status": "updated"}
+
+    raise HTTPException(status_code=400, detail="Invalid merchant business type")
+
+
+@router.delete("/items/{item_id}")
+async def delete_catalog_item(
+    item_id: str,
+    merchant: Merchant = Depends(get_current_merchant),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a catalog product or service for the current merchant."""
+    m_id = merchant.id
+    b_type = merchant.business_type
+
+    if b_type == "grocery":
+        stmt = select(GroceryProduct).options(selectinload(GroceryProduct.inventory)).where(
+            GroceryProduct.id == item_id,
+            GroceryProduct.merchant_id == m_id
+        )
+        prod = (await db.execute(stmt)).scalars().first()
+        if not prod:
+            raise HTTPException(status_code=404, detail="Product not found")
+        await db.delete(prod)
+        await db.commit()
+        return {"id": item_id, "status": "deleted"}
+
+    elif b_type == "sweets":
+        stmt = select(SweetsProduct).options(selectinload(SweetsProduct.inventory)).where(
+            SweetsProduct.id == item_id,
+            SweetsProduct.merchant_id == m_id
+        )
+        prod = (await db.execute(stmt)).scalars().first()
+        if not prod:
+            raise HTTPException(status_code=404, detail="Product not found")
+        await db.delete(prod)
+        await db.commit()
+        return {"id": item_id, "status": "deleted"}
+
+    elif b_type == "salon":
+        stmt = select(SalonService).where(
+            SalonService.id == item_id,
+            SalonService.merchant_id == m_id
+        )
+        serv = (await db.execute(stmt)).scalars().first()
+        if not serv:
+            raise HTTPException(status_code=404, detail="Service not found")
+        await db.delete(serv)
+        await db.commit()
+        return {"id": item_id, "status": "deleted"}
+
+    elif b_type == "dental":
+        stmt = select(DentalService).where(
+            DentalService.id == item_id,
+            DentalService.merchant_id == m_id
+        )
+        serv = (await db.execute(stmt)).scalars().first()
+        if not serv:
+            raise HTTPException(status_code=404, detail="Service not found")
+        await db.delete(serv)
+        await db.commit()
+        return {"id": item_id, "status": "deleted"}
+
+    raise HTTPException(status_code=400, detail="Invalid merchant business type")
+

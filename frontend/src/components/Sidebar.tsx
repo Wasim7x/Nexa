@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onSelectPage, pen
         <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-semibold text-slate-200">Vera Engine Live</span>
+            <span className="text-xs font-semibold text-slate-200">Nexa Engine Live</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Multi-tenant isolation active</p>
         </div>
